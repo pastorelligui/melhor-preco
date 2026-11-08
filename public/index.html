@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f7f3">
+  <meta name="description" content="Compare preços de produtos de supermercado em um só lugar.">
+  <title>Melhor Preço | Compare ofertas de supermercado</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/site.css">
+  <script src="/static/search.js" defer></script>
+</head>
+<body>
+  <header class="topbar shell">
+    <a href="/" class="brand"><img src="/static/logo.png" width="345" height="149" alt="Melhor Preço"></a>
+    <span class="topbar-label">Comparador de supermercados</span>
+  </header>
+
+  <main class="shell">
+    <section class="hero" aria-labelledby="page-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><span></span> Pesquisa de ofertas</p>
+        <h1 id="page-title">Compare antes<br class="wide-break"> de comprar.</h1>
+        <p class="intro">Pesquise um produto e veja as ofertas de diferentes lojas em ordem de preço.</p>
+        <form id="search-form" role="search">
+          <label for="query">Qual produto você quer comparar?</label>
+          <div class="search-row">
+            <div class="search-field">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
+              <input id="query" name="q" type="search" placeholder="Ex.: café em pó 500 g" maxlength="120" minlength="2" required>
+            </div>
+            <button class="primary" type="submit">Buscar ofertas</button>
+          </div>
+        </form>
+        <div class="suggestions" aria-label="Sugestões de busca">
+          <span>Experimente</span>
+          <button type="button" data-query="Café em pó 500 g">Café 500 g</button>
+          <button type="button" data-query="Arroz 5 kg">Arroz 5 kg</button>
+          <button type="button" data-query="Leite integral 1 L">Leite 1 L</button>
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <svg viewBox="0 0 380 360" fill="none">
+          <defs>
+            <linearGradient id="bag" x1="82" y1="153" x2="296" y2="319" gradientUnits="userSpaceOnUse"><stop stop-color="#effbf0"/><stop offset="1" stop-color="#b4dfc2"/></linearGradient>
+            <linearGradient id="tag" x1="228" y1="94" x2="329" y2="217" gradientUnits="userSpaceOnUse"><stop stop-color="#319569"/><stop offset="1" stop-color="#124b36"/></linearGradient>
+            <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0v24" stroke="#719c81" stroke-opacity=".22"/></pattern>
+          </defs>
+          <circle cx="191" cy="174" r="151" fill="url(#grid)"/>
+          <circle cx="191" cy="174" r="150" stroke="#86ad94" stroke-opacity=".5" stroke-dasharray="3 8"/>
+          <ellipse cx="190" cy="314" rx="126" ry="14" fill="#154831" opacity=".09"/>
+          <path d="M122 171v-25a53 53 0 0 1 106 0v25" stroke="#3f8e67" stroke-width="11" stroke-linecap="round"/>
+          <path d="M87 158h177l20 123a23 23 0 0 1-23 26H89a23 23 0 0 1-23-26z" fill="url(#bag)" stroke="#81b594" stroke-width="1.5"/>
+          <path d="M90 163h171" stroke="#fff" stroke-width="2" opacity=".75"/>
+          <circle cx="176" cy="235" r="38" fill="#eaf7ed" fill-opacity=".82" stroke="#fff" stroke-width="1.5"/>
+          <path d="m161 235 10 10 20-22" stroke="#176646" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+          <g transform="rotate(14 289 151)">
+            <path d="M265 87h51l28 28v80a14 14 0 0 1-14 14h-71a14 14 0 0 1-14-14v-88a20 20 0 0 1 20-20Z" fill="url(#tag)" stroke="#216748" stroke-width="1.5"/>
+            <circle cx="269" cy="111" r="7" fill="#d4edda"/>
+            <path d="m275 173 39-36m-29 4h-1m22 28h-1" stroke="#e4f6e8" stroke-width="5" stroke-linecap="round"/>
+            <circle cx="284" cy="142" r="7" stroke="#e4f6e8" stroke-width="3"/>
+            <circle cx="306" cy="169" r="7" stroke="#e4f6e8" stroke-width="3"/>
+          </g>
+          <path d="M271 107c-9-21-25-30-41-28" stroke="#497a60" stroke-width="3" stroke-linecap="round"/>
+          <path d="M70 97v24m-12-12h24m229 142v20m-10-10h20" stroke="#6a9e80" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </section>
+
+    <noscript><p class="notice">Ative o JavaScript no navegador para buscar ofertas.</p></noscript>
+    <div id="announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+    <section id="results" class="results" aria-labelledby="results-title" hidden>
+      <header class="results-header">
+        <div>
+          <p class="eyebrow">Comparação de preços</p>
+          <h2 id="results-title" tabindex="-1">Resultados</h2>
+          <p id="results-note"></p>
+        </div>
+        <div id="store-control" class="store-control" hidden>
+          <label for="store">Filtrar por loja</label>
+          <select id="store"></select>
+        </div>
+      </header>
+      <div id="feedback" class="notice" hidden>
+        <span class="spinner" aria-hidden="true" hidden></span>
+        <span id="feedback-text"></span>
+        <button id="retry" type="button" class="secondary" hidden>Tentar novamente</button>
+      </div>
+      <ul id="offers" class="offer-grid"></ul>
+    </section>
+
+    <template id="offer-template">
+      <li class="offer">
+        <div class="offer-image" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M5 8h14l2 13H3L5 8Z"/><path d="M9 10V6a3 3 0 1 1 6 0v4"/></svg>
+        </div>
+        <div class="offer-details">
+          <p class="store"></p>
+          <h3 class="product"></h3>
+          <p class="price"></p>
+          <div class="offer-actions">
+            <a class="secondary visit" target="_blank" rel="noopener noreferrer" hidden>Ver oferta <span aria-hidden="true">↗</span></a>
+            <button type="button" class="secondary copy" hidden>Copiar link</button>
+          </div>
+        </div>
+      </li>
+    </template>
+
+    <footer class="footer">
+      <span>Melhor Preço</span>
+      <p>Confira preço, disponibilidade e frete no site da loja.</p>
+    </footer>
+  </main>
+</body>
+</html>

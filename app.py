@@ -1,65 +1,97 @@
-from flask import Flask, render_template, request
-from serpapi import GoogleSearch
+import json
+import math
+import os
+import re
+import unicodedata
+from urllib.error import URLError
+from urllib.parse import urlencode, urlsplit
+from urllib.request import urlopen
 
-app = Flask(__name__)
+from flask import Flask, jsonify, request, send_from_directory
 
-# --- CONFIGURAÇÃO ---
-API_KEY = "9a0b81b580e2ef642dc8590adc7f564ffcb9d83d9f8ce3646a8d5af134633056" 
+app = Flask(__name__, static_folder="public/static", static_url_path="/static")
 
-# Filtro de lojas de alimentos e limpeza
-SITES_PERMITIDOS = [
-    "carrefour", "pao de acucar", "extra", "coop", "nagumo", "sonda", "mambo", 
-    "atacadão", "assai", "mercado", "clube extra", "tenda", "hirota", "baba",
-    "swift", "lopes", "shibata", "trimais", "vovo zuzu", "peg pese"
-]
+LOJAS = (
+    "carrefour", "pao de acucar", "extra", "coop", "nagumo", "sonda", "mambo",
+    "atacadao", "assai", "mercado", "clube extra", "tenda", "hirota", "baba",
+    "swift", "lopes", "shibata", "trimais", "vovo zuzu", "peg pese",
+)
 
-def buscar_google_shopping(item):
-    params = {
-        "engine": "google_shopping",
-        "q": item,
-        "hl": "pt",
-        "gl": "br",
-        "api_key": API_KEY
-    }
+
+def normalizar(texto):
+    sem_acentos = unicodedata.normalize("NFKD", texto.casefold()).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", " ", sem_acentos).strip()
+
+
+def url_https(valor, aceitar_relativo=False):
+    if not isinstance(valor, str) or not valor:
+        return None
+    if aceitar_relativo and valor.startswith("/") and not valor.startswith("//"):
+        valor = "https://www.google.com" + valor
     try:
-        search = GoogleSearch(params)
-        results = search.get_dict()
-        shopping_results = results.get("shopping_results", [])
-        
-        lista_final = []
-        for res in shopping_results:
-            loja = res.get("source", "").lower()
-            
-            # FILTRO: Só adiciona se a loja estiver na nossa lista permitida
-            if any(site in loja for site in SITES_PERMITIDOS):
-                link = res.get("link") or res.get("product_link") or ""
-                if link.startswith("/"):
-                    link = "https://www.google.com" + link
-                
-                lista_final.append({
-                    "loja": res.get("source", "Loja"),
-                    "produto": res.get("title", "Produto"),
-                    "preco_exibicao": res.get("price", "Consultar"),
-                    "preco_num": res.get("extracted_price", 999999),
-                    "link": link,
-                    "thumbnail": res.get("thumbnail")
-                })
-        
-        # Ordenar por menor preço
-        return sorted(lista_final, key=lambda x: x['preco_num'])
-    except Exception as e:
-        print(f"Erro: {e}")
-        return []
+        url = urlsplit(valor)
+        if url.scheme == "https" and url.hostname and not (url.username or url.password):
+            return valor
+    except ValueError:
+        pass
+    return None
 
-@app.route('/', methods=['GET', 'POST'])
+
+def formatar_ofertas(resultados):
+    ofertas = []
+    for resultado in resultados:
+        loja = resultado.get("source")
+        titulo = resultado.get("title")
+        if not isinstance(loja, str) or not isinstance(titulo, str) or not titulo.strip():
+            continue
+        loja_normalizada = f" {normalizar(loja)} "
+        if not any(f" {nome} " in loja_normalizada for nome in LOJAS):
+            continue
+
+        preco = resultado.get("extracted_price")
+        if type(preco) not in (int, float) or not math.isfinite(preco) or preco <= 0:
+            preco = None
+
+        ofertas.append({
+            "loja": loja,
+            "produto": titulo,
+            "preco": preco,
+            "link": url_https(resultado.get("link"), aceitar_relativo=True)
+            or url_https(resultado.get("product_link"), aceitar_relativo=True),
+            "thumbnail": url_https(resultado.get("thumbnail")),
+        })
+    return sorted(ofertas, key=lambda oferta: oferta["preco"] if oferta["preco"] is not None else math.inf)
+
+
+@app.get("/")
 def index():
-    resultados = None
-    item_buscado = ""
-    if request.method == 'POST':
-        item_buscado = request.form.get('item')
-        if item_buscado:
-            resultados = buscar_google_shopping(item_buscado)
-    return render_template('index.html', resultados=resultados, item=item_buscado)
+    return send_from_directory("public", "index.html")
 
-if __name__ == '__main__':
-    app.run(debug=True)
+
+@app.get("/api/ofertas")
+def buscar_ofertas():
+    item = request.args.get("q", "").strip()
+    if not 2 <= len(item) <= 120:
+        return jsonify(erro="Digite um produto com 2 a 120 caracteres."), 400
+
+    chave = os.environ.get("SERPAPI_API_KEY")
+    if not chave:
+        app.logger.error("SERPAPI_API_KEY ausente.")
+        return jsonify(erro="A busca está temporariamente indisponível. Tente novamente mais tarde."), 503
+
+    parametros = urlencode({
+        "engine": "google_shopping", "q": item, "hl": "pt", "gl": "br", "api_key": chave,
+    })
+    try:
+        with urlopen(f"https://serpapi.com/search.json?{parametros}", timeout=12) as resposta:
+            dados = json.load(resposta)
+        if dados.get("error") or dados.get("search_metadata", {}).get("status") == "Error":
+            raise ValueError("Falha na busca")
+        return jsonify(ofertas=formatar_ofertas(dados.get("shopping_results", [])))
+    except (URLError, OSError, ValueError, AttributeError, TypeError) as erro:
+        app.logger.warning("Falha na consulta à SerpApi (%s).", type(erro).__name__)
+        return jsonify(erro="Não foi possível consultar as ofertas agora. Tente novamente."), 502
+
+
+if __name__ == "__main__":
+    app.run()
